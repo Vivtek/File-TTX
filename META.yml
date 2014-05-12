@@ -1,0 +1,18 @@
+--- #YAML:1.0
+ name: File::TTX
+ abstract: Utilities for reading and writing TRADOS TTX files
+ version: 0.02
+ author:
+   - Michael Roberts <michael@vivtek.com>
+ license: perl
+ distribution_type: module
+ requires:
+   XML::xmlapi 0.07
+ recommends: -
+ build_requires: -
+ urls:
+   license: http://dev.perl.org/licenses/
+ meta-spec:
+   version: 1.3
+   url: http://module-build.sourceforge.net/META-spec-v1.3.html
+ generated_by: hand!
