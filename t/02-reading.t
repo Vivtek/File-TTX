@@ -26,8 +26,8 @@ is ($content[1]->translated, 'Final invoice');
 
 is ($content[2]->type, 'close');
 
-ok (not ref $content[3]);
-is ($content[3], "\n");
+is ($content[3]->type, 'text');
+is ($content[3]->source, "\n");
 
 @segments = $ttx->segments();
 is (@segments, 1);

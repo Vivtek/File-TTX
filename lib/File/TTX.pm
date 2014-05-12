@@ -11,11 +11,11 @@ File::TTX - Utilities for dealing with TRADOS TTX files
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 
 =head1 SYNOPSIS
@@ -63,11 +63,9 @@ C<XML::Snap> elements with a little extra sugar for convenience.
    my $ttx = File::TTX->load('myfile.ttx');
    
    foreach my $piece ($ttx->content_elements) {
-      if (not ref $piece) {
-         print "$piece\n"; # This is just unsegmented text in the file.
-      } elsif ($piece->type eq 'mark') {
+      if ($piece->type eq 'mark') {
          # something
-      } elsif ($piece->type eq 'segment') {
+      } else {
          print $piece->translated . "\n";
       }
    }
@@ -99,9 +97,7 @@ Here's another example: a filter to strip all pre-translated content out of a TT
 
 It should be easy to see how you can expand that filter idea into nearly anything you need.
 
-There are still plenty of gaps in this API! I plan to extend it as I run into new use cases.  Now that I've actually put the
-darned thing on CPAN, I won't lose it in the meantime, so I won't have to rewrite it.  Again.  This is the fourth time, if
-you're keeping count.  (And of course, since this is the first time I've managed to upload it, you I<can't> be keeping count.)
+There are still plenty of gaps in this API! I plan to extend it as I run into new use cases. I'd be overjoyed to hear about yours.
 
 =head1 CREATING A TTX OBJECT
 
@@ -170,6 +166,7 @@ from TRADOS native tools, but as long as your TTX isn't generated from a Word do
 sub load {
    my ($class, $file) = @_;
    my $xml = XML::Snap->load($file);
+   $xml->bless_text;
    return $class->new(xml => $xml, file=>$file);
 }
 
@@ -183,31 +180,18 @@ to the same place.
 =cut
 
 sub write {
-   my ($self, $file) = @_;
-   $file = $self->{file} unless $file;
-   
-   $self->{xml}->write_UCS2LE($file);
-}
-
-=head2 write_UCS2LE ($filename)
-
-Given a filename, opens it with :raw:encoding(UCS-2LE):crlf:utf8 and writes an 0xFEFF byte order marker at the outset.
-This is used by TRADOS TTX files, which is why it's here; it might be useful for other things, but if so, I have yet to discover them.
-
-=cut
-
-sub write_UCS2LE {
    my ($self, $fname) = @_;
-
+   $fname = $self->{file} unless $fname;
+   
    my $file;
    open $file, ">:raw:encoding(UCS-2LE):crlf:utf8", $fname or croak $!;
    print $file "\x{FEFF}";  # This is the byte order marker; Perl would do this for us, apparently, if we hadn't
                             # explicitly specified the UCS-2LE encoding.
    print $file "<?xml version='1.0'?>\n";
-   $self->writestream($file);
-   close $file;
-}
+   $self->{xml}->writestream($file);
 
+   #$self->{xml}->write_UCS2LE($file);
+}
 
 
 
@@ -307,7 +291,7 @@ Append a string to the end of the body.  It's the caller's responsibility to ter
 
 sub append_text {
    my ($self, $str) = @_;
-   $self->{body}->add ($str);
+   $self->{body}->add (\$str);
 }
 
 =head2 append_segment($source, $target, $match, $slang, $tlang, $origin)
@@ -388,10 +372,11 @@ sub append_close_tag {
    $self->{body}->add($mark);
 }
 
-=head2 append_copy
+=head2 append_copy, copy_all
 
 If you have an XML piece from another TTX, you can append a copy of it directly into this TTX.  Note that the "XML piece" from C<source> and
 C<translated> of a segment may actually be a list (because a segment may contain tags and text).
+The C<copy_all> method copies the contents of another TTX's body tag into the current TTX, and can filter along the way.
 
 =cut
 
@@ -425,7 +410,7 @@ sub content_elements {
    my ($self) = @_;
    my @returns = $self->{body}->children;
    foreach (@returns) {
-      File::TTX::Content->rebless($_) if ref $_;
+      File::TTX::Content->rebless($_);
    }
    @returns;
 }
@@ -490,6 +475,7 @@ Returns the type of content piece.  The possible answers are 'text', 'open', 'cl
 sub type {
    my $self = shift;
    
+   return 'text' if $self->istext;
    return 'segment' if $self->is('Tu');
    if ($self->is('ut')) {
       return 'open'  if $self->get('Type', '') eq 'start';
@@ -556,7 +542,6 @@ sub write_translated {
    return unless defined $t[1]; # Not sure if this can actually happen, but it's best to play it safe.
    my $t = $t[1];
    $$t{children} = []; # Cheating a little here, because I know this is an XML::Snap object underneath.
-   $$t{elements} = [];
    for my $element (@_) {
       $t->add($element);
    }
@@ -597,7 +582,6 @@ sub write_source {
    return unless defined $t[0]; # Not sure if this can actually happen, but it's best to play it safe.
    my $t = $t[0];
    $$t{children} = []; # Cheating a little here, because I know this is an XML::Snap object underneath.
-   $$t{elements} = [];
    for my $element (@_) {
       $t->add($element);
    }
